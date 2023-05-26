@@ -1,15 +1,28 @@
 import wx
 import wx.lib.colourdb
-#import pygame
-#import pygame.midi as midi
+import pygame
+import pygame.midi as midi
 import random
 import time
 import threading
 
+# Create a dictionary to map values to MIDI notes
+value_to_note = {
+    0: 60,  # C4
+    1: 62,  # D4
+    2: 64,  # E4
+    # Add more mappings as needed
+}
+
+# Initialize the MIDI output
+midi.init()
+player = midi.Output(0)
+
+
 class SortingFrame(wx.Frame):
     def __init__(self):
         wx.Frame.__init__(self, None, wx.ID_ANY, "Sorting Algorithms Visualization")
-        self.SetSize((1000, 600))  # Set the initial window size
+        self.SetSize((1000, 720))  # Set the initial window size
         self.Center()  # Center the window on the screen
 
         self.sorting_thread = None
@@ -19,6 +32,10 @@ class SortingFrame(wx.Frame):
         self.numbers = None
         self.initial_numbers = None
         self.completed = 0
+        self.print_result = ""
+        self.complexity_result = ""
+        self.complexity_type_result = ""
+        self.comparison_count = 0
 
         self.panel = wx.Panel(self)
 
@@ -37,7 +54,6 @@ class SortingFrame(wx.Frame):
         # Graph panel
         self.graph_panel = GraphPanel(self.panel)
 
-
         # Size options
         self.size_label = wx.StaticText(self.panel, label="Size:")
         self.size_textbox = wx.TextCtrl(self.panel, value="", style=wx.TE_PROCESS_ENTER)
@@ -48,11 +64,13 @@ class SortingFrame(wx.Frame):
         self.speed_slider = wx.Slider(self.panel, value=50, minValue=1, maxValue=100, style=wx.SL_HORIZONTAL)
 
         # Sorting algorithms list box
-        self.algorithms_radiobox = wx.RadioBox(self.panel, choices=list(self.algorithms.keys()), style=wx.RA_SPECIFY_ROWS)
+        self.algorithms_radiobox = wx.RadioBox(self.panel, choices=list(self.algorithms.keys()),
+                                               style=wx.RA_SPECIFY_ROWS)
 
         # Graph types radio buttons
         self.graph_type_label = wx.StaticText(self.panel, label="Graph Type:")
-        self.graph_type_radiobox = wx.RadioBox(self.panel, choices=["Scatter Chart", "Column (Bar) Graph", "Stem Graph"],
+        self.graph_type_radiobox = wx.RadioBox(self.panel,
+                                               choices=["Scatter Chart", "Column (Bar) Graph", "Stem Graph"],
                                                style=wx.RA_SPECIFY_ROWS)
 
         # Create, Start, Stop, Reset buttons
@@ -67,6 +85,16 @@ class SortingFrame(wx.Frame):
         self.Bind(wx.EVT_BUTTON, self.on_stop, self.button_stop)
         self.Bind(wx.EVT_BUTTON, self.on_reset, self.button_reset)
         self.size_textbox.Bind(wx.EVT_TEXT_ENTER, self.on_create)
+
+        # Box for the result of comparisons and complexity analysis
+        self.comparison_label = wx.StaticText(self.panel, label="Comparisons Count:")
+        self.comparison_text = wx.TextCtrl(self.panel, style=wx.TE_READONLY)
+        self.complexity_type = wx.TextCtrl(self.panel, style=wx.TE_READONLY)
+        self.complexity_label = wx.StaticText(self.panel, label="Complexity:")
+        self.complexity_text = wx.TextCtrl(self.panel, style=wx.TE_READONLY)
+        self.comparison_text.SetMinSize(wx.Size(560, -1))
+        self.complexity_type.SetMinSize(wx.Size(673, -1))
+        self.complexity_text.SetMinSize(wx.Size(606, -1))
 
         # Sizer for left side elements
         left_sizer = wx.BoxSizer(wx.VERTICAL)
@@ -83,10 +111,31 @@ class SortingFrame(wx.Frame):
         left_sizer.Add(self.button_stop, 0, wx.EXPAND | wx.ALL, 5)
         left_sizer.Add(self.button_reset, 0, wx.EXPAND | wx.ALL, 5)
 
+        # Sizer for the graph
+        graph_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        graph_sizer.Add(left_sizer, 0, wx.EXPAND | wx.ALL, 10)
+        graph_sizer.Add(self.graph_panel, 1, wx.EXPAND | wx.ALL, 10)
+
+        # Sizer for the comparison
+        results_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        results_sizer.Add(self.comparison_label, 0, wx.EXPAND | wx.ALL, 2)
+        results_sizer.Add(self.comparison_text, 0, wx.EXPAND | wx.ALL, 2)
+
+        # Sizer for the complexity type
+        complexity_type_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        complexity_type_sizer.Add(self.complexity_type, 0, wx.EXPAND | wx.ALL, 2)
+
+        # Sizer for the complexity
+        complexity_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        complexity_sizer.Add(self.complexity_label, 0, wx.EXPAND | wx.ALL, 2)
+        complexity_sizer.Add(self.complexity_text, 0, wx.EXPAND | wx.ALL, 2)
+
         # Main sizer for the frame
-        main_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        main_sizer.Add(left_sizer, 0, wx.EXPAND | wx.ALL, 10)
-        main_sizer.Add(self.graph_panel, 1, wx.EXPAND | wx.ALL, 10)
+        main_sizer = wx.BoxSizer(wx.VERTICAL)
+        main_sizer.Add(graph_sizer, 0, wx.EXPAND | wx.ALL, 10)
+        main_sizer.Add(results_sizer, 0, wx.EXPAND | wx.ALL, 2)
+        main_sizer.Add(complexity_type_sizer, 0, wx.EXPAND | wx.ALL, 2)
+        main_sizer.Add(complexity_sizer, 0, wx.EXPAND | wx.ALL, 2)
 
         # Activate or Disable buttons accordingly
         self.button_create.Enable()
@@ -96,6 +145,32 @@ class SortingFrame(wx.Frame):
 
         self.panel.SetSizer(main_sizer)
         self.Layout()
+
+    def perform_complexity_analysis(self):
+        if self.algorithm_name == "Bubble Sort":
+            self.complexity_type.SetValue("Bubble Sort has a worst-case time complexity of O(n^2) and a best-case time complexity of O(n).")
+        elif self.algorithm_name == "Insertion Sort":
+            self.complexity_type.SetValue("Insertion Sort has a worst-case time complexity of O(n^2) and a best-case time complexity of O(n).")
+        elif self.algorithm_name == "Selection Sort":
+            self.complexity_type.SetValue("Selection Sort has a worst-case time complexity of O(n^2) and a best-case time complexity of O(n^2).")
+        elif self.algorithm_name == "Merge Sort":
+            self.complexity_type.SetValue("Merge Sort has a worst-case time complexity of O(n log n) and a best-case time complexity of O(n log n).")
+        elif self.algorithm_name == "Quick Sort":
+            self.complexity_type.SetValue("Quick Sort has a worst-case time complexity of O(n^2) and a best-case time complexity of O(n log n).")
+        elif self.algorithm_name == "Heap Sort":
+            self.complexity_type.SetValue("Heap Sort has a worst-case time complexity of O(n log n) and a best-case time complexity of O(n log n).")
+        else:
+            self.complexity_type.SetValue("Complexity analysis is not available for the selected algorithm.")
+
+    def update_comparison_text(self):
+        self.comparison_count += 1
+        self.comparison_text.SetValue(f"{self.comparison_count}")
+
+    def on_complexity_analysis(self, event):
+        self.complexity_result = self.perform_complexity_analysis()  # Perform your complexity analysis and get the results
+        dlg = wx.MessageDialog(self, self.complexity_result, "Complexity Analysis Results", wx.OK | wx.ICON_INFORMATION)
+        dlg.ShowModal()
+        dlg.Destroy()
 
     def on_input_enter(self, event):
         # Get the input text
@@ -162,8 +237,11 @@ class SortingFrame(wx.Frame):
         self.random_size_slider.Disable()
         self.size_textbox.Disable()
 
+        self.perform_complexity_analysis()
+
         self.initial_numbers = self.numbers
         self.sorting_thread = threading.Thread(target=self.algorithm, args=(self.speed,))
+        self.comparison_count = 0
         self.completed = 0
         self.state = 1
 
@@ -235,6 +313,9 @@ class SortingFrame(wx.Frame):
         self.random_size_slider.Enable()
         self.size_textbox.Enable()
 
+        # Reset the count
+        self.comparison_count = 0
+
     def on_complete(self, numbers):
         self.state = 0
 
@@ -276,6 +357,7 @@ class SortingFrame(wx.Frame):
                     if self.state == 3:
                         self.numbers = numbers
                         return
+                    self.update_comparison_text()
                 # If no swaps were made in this pass, the list is already sorted
                 if not swapped:
                     break
@@ -295,6 +377,7 @@ class SortingFrame(wx.Frame):
             while j < n:
                 if numbers[j] < numbers[min_idx]:
                     min_idx = j
+                    self.update_comparison_text()
 
                 j += 1
 
@@ -323,6 +406,7 @@ class SortingFrame(wx.Frame):
 
             while j >= 0 and numbers[j] > key:
                 numbers[j + 1] = numbers[j]
+                self.update_comparison_text()
                 self.graph_panel.set_highlighted_indices([j, j + 1])
                 self.graph_panel.Refresh()
                 time.sleep(speed)
@@ -334,6 +418,7 @@ class SortingFrame(wx.Frame):
                     return
 
             numbers[j + 1] = key
+            self.update_comparison_text()
             self.graph_panel.set_highlighted_indices([])
             self.graph_panel.Refresh()
             time.sleep(speed)
@@ -358,9 +443,11 @@ class SortingFrame(wx.Frame):
 
                 for i in range(n1):
                     L[i] = arr[l + i]
+                    self.update_comparison_text()
 
                 for j in range(n2):
                     R[j] = arr[m + 1 + j]
+                    self.update_comparison_text()
 
                 i = j = 0
                 k = l
@@ -368,9 +455,11 @@ class SortingFrame(wx.Frame):
                 while i < n1 and j < n2:
                     if L[i] <= R[j]:
                         arr[k] = L[i]
+                        self.update_comparison_text()
                         i += 1
                     else:
                         arr[k] = R[j]
+                        self.update_comparison_text()
                         j += 1
 
                     k += 1
@@ -386,11 +475,13 @@ class SortingFrame(wx.Frame):
 
                 while i < n1:
                     arr[k] = L[i]
+                    self.update_comparison_text()
                     i += 1
                     k += 1
 
                 while j < n2:
                     arr[k] = R[j]
+                    self.update_comparison_text()
                     j += 1
                     k += 1
 
@@ -409,6 +500,7 @@ class SortingFrame(wx.Frame):
                     merge_sort_helper(arr, l, m)
                     merge_sort_helper(arr, m + 1, r)
                     merge(arr, l, m, r)
+                    self.update_comparison_text()
                     self.numbers = arr
                     self.graph_panel.set_numbers(arr)
                     self.graph_panel.Refresh()
@@ -440,6 +532,8 @@ class SortingFrame(wx.Frame):
                         self.graph_panel.set_numbers(arr)
                         time.sleep(speed)
 
+                    self.update_comparison_text()
+
                     if self.state == 3:
                         self.numbers = arr
                         return -1
@@ -457,6 +551,7 @@ class SortingFrame(wx.Frame):
                         return
                     quick_sort_helper(arr, low, pi - 1)
                     quick_sort_helper(arr, pi + 1, high)
+                    self.update_comparison_text()
                     self.graph_panel.set_highlighted_indices([pi + 1, high, low, pi - 1])  # Highlight subarrays
                     self.graph_panel.set_numbers(arr)
                     self.graph_panel.Refresh()
@@ -482,7 +577,7 @@ class GraphPanel(wx.Panel):
 
     def initialize_gradient_colors(self):
         wx.lib.colourdb.updateColourDB()
-        if self.graph_type == "Stem Graph": # To see the graph better swap the colors
+        if self.graph_type == "Stem Graph":  # To see the graph better swap the colors
             min_color = wx.Colour(0, 255, 255)  # Cyan
             max_color = wx.Colour(0, 0, 128)  # Dark Blue
         else:
@@ -521,7 +616,24 @@ class GraphPanel(wx.Panel):
 
     def set_highlighted_indices(self, indices):
         self.highlighted_indices = indices
+        for index in self.highlighted_indices:
+            if index < len(self.numbers):
+                value = self.numbers[index]
+                self.play_note_by_value(value)
         self.Refresh()
+
+    def play_note_by_value(self, value):
+        if value not in value_to_note:
+            # Generate a new MIDI note based on the value
+            note = 0 + value  # Adjust the offset as needed
+            value_to_note[value] = note
+
+        note = value_to_note[value]
+        self.play_note(note)
+
+    def play_note(self, note):
+        player.note_on(note, 127)  # Play the note with maximum velocity
+        player.note_off(note)
 
     def set_graph_type(self, graph_type):
         self.graph_type = graph_type
@@ -585,6 +697,10 @@ class GraphPanel(wx.Panel):
                 dc.SetPen(wx.Pen((self.gradient_colors[i]), width=2))  # Set the outline color
                 dc.SetBrush(wx.Brush(self.gradient_colors[i]))  # Use gradient colors
                 dc.DrawLine(x, height, x, height - stem_height)
+
+    def __del__(self):
+        player.close()
+        midi.quit()
 
 
 app = wx.App()
