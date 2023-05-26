@@ -135,6 +135,13 @@ class SortingFrame(wx.Frame):
         self.button_stop.Disable()
         self.button_reset.Enable()
 
+        # Activate or Disable selections accordingly
+        self.graph_type_radiobox.Disable()
+        self.algorithms_radiobox.Disable()
+        self.speed_slider.Disable()
+        self.random_size_slider.Disable()
+        self.size_textbox.Disable()
+
         self.initial_numbers = self.numbers
         self.sorting_thread = threading.Thread(target=self.algorithm, args=(self.speed,))
         self.completed = 0
@@ -151,6 +158,13 @@ class SortingFrame(wx.Frame):
         self.button_stop.Enable()
         self.button_reset.Disable()
 
+        # Activate or Disable selections accordingly
+        self.graph_type_radiobox.Disable()
+        self.algorithms_radiobox.Disable()
+        self.speed_slider.Disable()
+        self.random_size_slider.Disable()
+        self.size_textbox.Disable()
+
         self.state = 2
 
         if self.completed == 0:
@@ -163,6 +177,8 @@ class SortingFrame(wx.Frame):
             self.sorting_thread.start()
 
     def on_stop(self, event):
+        if self.sorting_thread and self.sorting_thread.is_alive():
+            self.sorting_thread = None
 
         # Activate or Disable buttons accordingly
         self.button_create.Disable()
@@ -170,13 +186,17 @@ class SortingFrame(wx.Frame):
         self.button_stop.Disable()
         self.button_reset.Enable()
 
+        # Activate or Disable selections accordingly
+        self.graph_type_radiobox.Disable()
+        self.algorithms_radiobox.Disable()
+        self.speed_slider.Disable()
+        self.random_size_slider.Disable()
+        self.size_textbox.Disable()
+
         self.state = 3
 
-        if self.sorting_thread and self.sorting_thread.is_alive():
-            self.sorting_thread.join()
-            self.sorting_thread = None
-
     def on_reset(self, event):
+
         self.state = 0
         self.numbers = self.initial_numbers
         self.graph_panel.set_numbers(self.numbers)
@@ -187,6 +207,13 @@ class SortingFrame(wx.Frame):
         self.button_start.Enable()
         self.button_stop.Disable()
         self.button_reset.Disable()
+
+        # Activate or Disable selections accordingly
+        self.graph_type_radiobox.Enable()
+        self.algorithms_radiobox.Enable()
+        self.speed_slider.Enable()
+        self.random_size_slider.Enable()
+        self.size_textbox.Enable()
 
     def on_complete(self, numbers):
         self.state = 0
@@ -201,6 +228,13 @@ class SortingFrame(wx.Frame):
         self.button_start.Disable()
         self.button_stop.Disable()
         self.button_reset.Enable()
+
+        # Activate or Disable selections accordingly
+        self.graph_type_radiobox.Enable()
+        self.algorithms_radiobox.Enable()
+        self.speed_slider.Enable()
+        self.random_size_slider.Enable()
+        self.size_textbox.Enable()
 
     def bubble_sort(self, speed):
         numbers = self.numbers.copy()
@@ -291,107 +325,117 @@ class SortingFrame(wx.Frame):
     def merge_sort(self, speed):
         numbers = self.numbers.copy()
 
-        def merge(arr, l, m, r):
-            n1 = m - l + 1
-            n2 = r - m
+        if self.state == 2:
+            def merge(arr, l, m, r):
+                if self.state == 3:
+                    self.numbers = arr
+                    return
+                n1 = m - l + 1
+                n2 = r - m
 
-            L = [0] * n1
-            R = [0] * n2
+                L = [0] * n1
+                R = [0] * n2
 
-            for i in range(n1):
-                L[i] = arr[l + i]
+                for i in range(n1):
+                    L[i] = arr[l + i]
 
-            for j in range(n2):
-                R[j] = arr[m + 1 + j]
+                for j in range(n2):
+                    R[j] = arr[m + 1 + j]
 
-            i = j = 0
-            k = l
+                i = j = 0
+                k = l
 
-            while i < n1 and j < n2:
-                if L[i] <= R[j]:
+                while i < n1 and j < n2:
+                    if L[i] <= R[j]:
+                        arr[k] = L[i]
+                        i += 1
+                    else:
+                        arr[k] = R[j]
+                        j += 1
+
+                    k += 1
+
+                    if self.state == 3:
+                        self.numbers = arr
+                        return
+
+                    self.graph_panel.set_highlighted_indices([l + i, m + 1 + j])
+                    self.graph_panel.set_numbers(arr)
+                    self.graph_panel.Refresh()
+                    time.sleep(speed)
+
+                while i < n1:
                     arr[k] = L[i]
                     i += 1
-                else:
+                    k += 1
+
+                while j < n2:
                     arr[k] = R[j]
                     j += 1
+                    k += 1
 
-                k += 1
+                # Set the correct indices in the original array
+                for idx in range(l, r + 1):
+                    self.graph_panel.set_highlighted_indices([idx])
+                    self.graph_panel.Refresh()
+                    time.sleep(speed)
 
+            def merge_sort_helper(arr, l, r):
                 if self.state == 3:
-                    self.numbers = numbers
+                    self.numbers = arr
                     return
+                if l < r:
+                    m = (l + r) // 2
+                    merge_sort_helper(arr, l, m)
+                    merge_sort_helper(arr, m + 1, r)
+                    merge(arr, l, m, r)
+                    self.numbers = arr
+                    self.graph_panel.set_numbers(arr)
+                    self.graph_panel.Refresh()
+                    time.sleep(speed)
 
-                self.graph_panel.set_highlighted_indices([l + i, m + 1 + j])
-                self.graph_panel.set_numbers(arr)
-                self.graph_panel.Refresh()
-                time.sleep(speed)
-
-            while i < n1:
-                arr[k] = L[i]
-                i += 1
-                k += 1
-
-            while j < n2:
-                arr[k] = R[j]
-                j += 1
-                k += 1
-
-            # Set the correct indices in the original array
-            for idx in range(l, r + 1):
-                self.graph_panel.set_highlighted_indices([idx])
-                self.graph_panel.Refresh()
-                time.sleep(speed)
-
-        def merge_sort_helper(arr, l, r):
-            if l < r:
-                m = (l + r) // 2
-                merge_sort_helper(arr, l, m)
-                merge_sort_helper(arr, m + 1, r)
-                merge(arr, l, m, r)
-                self.graph_panel.set_numbers(arr)
-                self.graph_panel.Refresh()
-                time.sleep(speed)
-
-        if self.state == 2:
             merge_sort_helper(numbers, 0, len(numbers) - 1)
 
-            self.on_complete(numbers)
+            if self.state == 3:
+                return
+            else:
+                self.on_complete(numbers)
 
     def quick_sort(self, speed):
         numbers = self.numbers.copy()
 
-        def partition(arr, low, high):
-            i = (low - 1)
-            pivot = arr[high]
+        if self.state == 2:
+            def partition(arr, low, high):
+                i = (low - 1)
+                pivot = arr[high]
 
-            for j in range(low, high):
-                if arr[j] <= pivot:
-                    i = i + 1
-                    arr[i], arr[j] = arr[j], arr[i]
-                    self.graph_panel.set_highlighted_indices([i, high, low, j])  # Highlight subarrays
+                for j in range(low, high):
+                    if arr[j] <= pivot:
+                        i = i + 1
+                        arr[i], arr[j] = arr[j], arr[i]
+                        self.graph_panel.set_highlighted_indices([i, high, low, j])  # Highlight subarrays
+                        self.graph_panel.set_numbers(arr)
+                        time.sleep(speed)
+
+                    if self.state == 3:
+                        self.numbers = arr
+                        return -1
+
+                arr[i + 1], arr[high] = arr[high], arr[i + 1]
+                return (i + 1)
+
+            def quick_sort_helper(arr, low, high):
+                if low < high:
+                    pi = partition(arr, low, high)
+                    if pi == -1:
+                        return
+                    quick_sort_helper(arr, low, pi - 1)
+                    quick_sort_helper(arr, pi + 1, high)
+                    self.graph_panel.set_highlighted_indices([pi + 1, high, low, pi - 1])  # Highlight subarrays
                     self.graph_panel.set_numbers(arr)
+                    self.graph_panel.Refresh()
                     time.sleep(speed)
 
-                if self.state == 3:
-                    self.numbers = numbers
-                    return -1
-
-            arr[i + 1], arr[high] = arr[high], arr[i + 1]
-            return (i + 1)
-
-        def quick_sort_helper(arr, low, high):
-            if low < high:
-                pi = partition(arr, low, high)
-                if pi == -1:
-                    return
-                quick_sort_helper(arr, low, pi - 1)
-                quick_sort_helper(arr, pi + 1, high)
-                self.graph_panel.set_highlighted_indices([pi + 1, high, low, pi - 1])  # Highlight subarrays
-                self.graph_panel.set_numbers(arr)
-                self.graph_panel.Refresh()
-                time.sleep(speed)
-
-        if self.state == 2:
             quick_sort_helper(numbers, 0, len(numbers) - 1)
 
             self.on_complete(numbers)
