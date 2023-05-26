@@ -1,8 +1,10 @@
 import wx
+import wx.lib.colourdb
+#import pygame
+#import pygame.midi as midi
 import random
 import time
 import threading
-
 
 class SortingFrame(wx.Frame):
     def __init__(self):
@@ -34,6 +36,7 @@ class SortingFrame(wx.Frame):
 
         # Graph panel
         self.graph_panel = GraphPanel(self.panel)
+
 
         # Size options
         self.size_label = wx.StaticText(self.panel, label="Size:")
@@ -93,6 +96,23 @@ class SortingFrame(wx.Frame):
 
         self.panel.SetSizer(main_sizer)
         self.Layout()
+
+    def on_input_enter(self, event):
+        # Get the input text
+        input_text = self.input_text.GetValue()
+
+        # Split the input text using the special character separator
+        numbers = input_text.split(",")
+
+        # Convert the numbers from strings to integers
+        numbers = [int(num) for num in numbers]
+
+        # Set the numbers in the graph panel and update the displayed graph
+        self.graph_panel.set_numbers(numbers)
+        self.graph_panel.Refresh()
+
+    def on_submit(self, event):
+        self.on_input_enter(event)
 
     def on_create(self, event):
         size_text = self.size_textbox.GetValue()
@@ -406,6 +426,9 @@ class SortingFrame(wx.Frame):
 
         if self.state == 2:
             def partition(arr, low, high):
+                if self.state == 3:
+                    self.numbers = arr
+                    return
                 i = (low - 1)
                 pivot = arr[high]
 
@@ -425,6 +448,9 @@ class SortingFrame(wx.Frame):
                 return (i + 1)
 
             def quick_sort_helper(arr, low, high):
+                if self.state == 3:
+                    self.numbers = arr
+                    return
                 if low < high:
                     pi = partition(arr, low, high)
                     if pi == -1:
@@ -446,15 +472,59 @@ class GraphPanel(wx.Panel):
         wx.Panel.__init__(self, parent)
         self.numbers = []
         self.highlighted_indices = []
+        self.gradient_colors = []
+        self.graph_type = "Scatter Chart"
 
         self.Bind(wx.EVT_PAINT, self.on_paint)
 
+        # Initialize the gradient colors
+        self.initialize_gradient_colors()
+
+    def initialize_gradient_colors(self):
+        wx.lib.colourdb.updateColourDB()
+        if self.graph_type == "Stem Graph": # To see the graph better swap the colors
+            min_color = wx.Colour(0, 255, 255)  # Cyan
+            max_color = wx.Colour(0, 0, 128)  # Dark Blue
+        else:
+            min_color = wx.Colour(0, 0, 128)  # Dark Blue
+            max_color = wx.Colour(0, 255, 255)  # Cyan
+
+        if not self.numbers:  # Check if the numbers list is empty
+            return
+
+        # Get the RGB values for the minimum and maximum colors
+        min_r, min_g, min_b = min_color.Red(), min_color.Green(), min_color.Blue()
+        max_r, max_g, max_b = max_color.Red(), max_color.Green(), max_color.Blue()
+
+        # Determine the number of steps in the gradient based on the range of values
+        num_steps = max(max(self.numbers) - min(self.numbers), 1)
+
+        # Calculate the step size for each RGB channel
+        r_step = (max_r - min_r) / num_steps
+        g_step = (max_g - min_g) / num_steps
+        b_step = (max_b - min_b) / num_steps
+
+        # Generate the gradient colors
+        self.gradient_colors = []
+        for num in self.numbers:
+            # Calculate the RGB values for the current number based on its position in the range
+            r = max_r - int((num - min(self.numbers)) * r_step)
+            g = max_g - int((num - min(self.numbers)) * g_step)
+            b = max_b - int((num - min(self.numbers)) * b_step)
+
+            self.gradient_colors.append(wx.Colour(r, g, b))
+
     def set_numbers(self, numbers):
         self.numbers = numbers
+        self.initialize_gradient_colors()
         self.Refresh()
 
     def set_highlighted_indices(self, indices):
         self.highlighted_indices = indices
+        self.Refresh()
+
+    def set_graph_type(self, graph_type):
+        self.graph_type = graph_type
         self.Refresh()
 
     def on_paint(self, event):
@@ -466,33 +536,56 @@ class GraphPanel(wx.Panel):
         if not self.numbers:  # Check if the numbers list is empty
             return
 
-        bar_width = width // len(self.numbers)
-        max_height = max(self.numbers)
+        if self.graph_type == "Scatter Chart":
+            self.draw_scatter_chart(dc, width, height)
+        elif self.graph_type == "Column (Bar) Graph":
+            self.draw_column_graph(dc, width, height)
+        elif self.graph_type == "Stem Graph":
+            self.draw_stem_graph(dc, width, height)
 
-        # Handle the case when max_height is zero
-        if max_height == 0:
-            max_height = 1
+    def draw_scatter_chart(self, dc, width, height):
+        for i, num in enumerate(self.numbers):
+            x = int((i + 0.5) * width / len(self.numbers))
+            y = int((1 - num / max(self.numbers)) * (height - 20))
+            if i in self.highlighted_indices:
+                dc.SetPen(wx.Pen(wx.BLACK))  # Set the outline color
+                dc.SetBrush(wx.Brush(wx.RED))  # Set the fill color to red for highlighted indices
+                dc.DrawCircle(x, y, 3)
+            else:
+                dc.SetPen(wx.Pen(wx.BLACK))  # Set the outline color
+                dc.SetBrush(wx.Brush(self.gradient_colors[i]))  # Use gradient colors
+                dc.DrawCircle(x, y, 3)
+
+    def draw_column_graph(self, dc, width, height):
+        num_columns = len(self.numbers)
+        column_width = width // num_columns
 
         for i, num in enumerate(self.numbers):
-            x = i * bar_width
-            bar_height = int((num / max_height) * (height - 20))  # Convert to integer
+            x = i * column_width
+            column_height = int((num / max(self.numbers)) * (height - 20))
 
-            # Set color based on highlighted indices
             if i in self.highlighted_indices:
-                dc.SetBrush(wx.Brush(wx.RED))  # Highlighted color
+                dc.SetPen(wx.Pen(wx.BLACK))  # Set the outline color
+                dc.SetBrush(wx.Brush(wx.RED))  # Set the fill color to red for highlighted indices
+                dc.DrawRectangle(x, height - column_height, column_width, column_height)
             else:
-                dc.SetBrush(wx.Brush(wx.BLUE))  # Default color
+                dc.SetPen(wx.Pen(wx.BLACK))  # Set the outline color
+                dc.SetBrush(wx.Brush(self.gradient_colors[i]))  # Use gradient colors
+                dc.DrawRectangle(x, height - column_height, column_width, column_height)
 
-            dc.DrawRectangle(x, height - bar_height, bar_width, bar_height)
+    def draw_stem_graph(self, dc, width, height):
+        for i, num in enumerate(self.numbers):
+            x = int((i + 0.5) * width / len(self.numbers))
+            stem_height = int((1 - num / max(self.numbers)) * (height - 20))
+            if i in self.highlighted_indices:
+                dc.SetPen(wx.Pen((wx.RED), width=2))  # Set the outline color
+                dc.SetBrush(wx.Brush(wx.RED))  # Set the fill color to red for highlighted indices
+                dc.DrawLine(x, height, x, height - stem_height)
+            else:
+                dc.SetPen(wx.Pen((self.gradient_colors[i]), width=2))  # Set the outline color
+                dc.SetBrush(wx.Brush(self.gradient_colors[i]))  # Use gradient colors
+                dc.DrawLine(x, height, x, height - stem_height)
 
-    def reset_graph(self):
-        self.numbers = []  # Clear the numbers list
-        self.highlighted_indices = []  # Clear the highlighted indices
-        self.Refresh()  # Refresh the panel to clear the graph
-
-    def set_graph_type(self, graph_type):
-        self.graph_type = graph_type
-        self.Refresh()  # Refresh the panel to update the graph type
 
 app = wx.App()
 frame = SortingFrame()
