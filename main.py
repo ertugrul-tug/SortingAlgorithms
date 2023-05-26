@@ -321,6 +321,11 @@ class SortingFrame(wx.Frame):
                     self.numbers = numbers
                     return
 
+                self.graph_panel.set_highlighted_indices([l + i, m + 1 + j])
+                self.graph_panel.set_numbers(arr)
+                self.graph_panel.Refresh()
+                time.sleep(speed)
+
             while i < n1:
                 arr[k] = L[i]
                 i += 1
@@ -330,6 +335,12 @@ class SortingFrame(wx.Frame):
                 arr[k] = R[j]
                 j += 1
                 k += 1
+
+            # Set the correct indices in the original array
+            for idx in range(l, r + 1):
+                self.graph_panel.set_highlighted_indices([idx])
+                self.graph_panel.Refresh()
+                time.sleep(speed)
 
         def merge_sort_helper(arr, l, r):
             if l < r:
@@ -357,6 +368,9 @@ class SortingFrame(wx.Frame):
                 if arr[j] <= pivot:
                     i = i + 1
                     arr[i], arr[j] = arr[j], arr[i]
+                    self.graph_panel.set_highlighted_indices([i, high, low, j])  # Highlight subarrays
+                    self.graph_panel.set_numbers(arr)
+                    time.sleep(speed)
 
                 if self.state == 3:
                     self.numbers = numbers
@@ -372,6 +386,7 @@ class SortingFrame(wx.Frame):
                     return
                 quick_sort_helper(arr, low, pi - 1)
                 quick_sort_helper(arr, pi + 1, high)
+                self.graph_panel.set_highlighted_indices([pi + 1, high, low, pi - 1])  # Highlight subarrays
                 self.graph_panel.set_numbers(arr)
                 self.graph_panel.Refresh()
                 time.sleep(speed)
@@ -380,6 +395,8 @@ class SortingFrame(wx.Frame):
             quick_sort_helper(numbers, 0, len(numbers) - 1)
 
             self.on_complete(numbers)
+
+
 class GraphPanel(wx.Panel):
     def __init__(self, parent):
         wx.Panel.__init__(self, parent)
