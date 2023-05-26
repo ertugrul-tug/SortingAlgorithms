@@ -5,6 +5,7 @@ import pygame.midi as midi
 import random
 import time
 import threading
+import math
 
 # Create a dictionary to map values to MIDI notes
 value_to_note = {
@@ -22,7 +23,7 @@ player = midi.Output(0)
 class SortingFrame(wx.Frame):
     def __init__(self):
         wx.Frame.__init__(self, None, wx.ID_ANY, "Sorting Algorithms Visualization")
-        self.SetSize((1000, 720))  # Set the initial window size
+        self.SetSize((1000, 740))  # Set the initial window size
         self.Center()  # Center the window on the screen
 
         self.sorting_thread = None
@@ -56,7 +57,6 @@ class SortingFrame(wx.Frame):
 
         # Size options
         self.size_label = wx.StaticText(self.panel, label="Size:")
-        self.size_textbox = wx.TextCtrl(self.panel, value="", style=wx.TE_PROCESS_ENTER)
         self.random_size_slider = wx.Slider(self.panel, value=100, minValue=10, maxValue=500, style=wx.SL_HORIZONTAL)
 
         # Speed option
@@ -79,12 +79,16 @@ class SortingFrame(wx.Frame):
         self.button_stop = wx.Button(self.panel, wx.ID_ANY, "Stop")
         self.button_reset = wx.Button(self.panel, wx.ID_ANY, "Reset")
 
+        # Box for array inputs
+        self.array_label = wx.StaticText(self.panel, label="Enter your numbers here with , in between:")
+        self.array_text = wx.TextCtrl(self.panel, style=wx.TE_PROCESS_ENTER)
+
         # Bind event handlers
         self.Bind(wx.EVT_BUTTON, self.on_create, self.button_create)
         self.Bind(wx.EVT_BUTTON, self.on_start, self.button_start)
         self.Bind(wx.EVT_BUTTON, self.on_stop, self.button_stop)
         self.Bind(wx.EVT_BUTTON, self.on_reset, self.button_reset)
-        self.size_textbox.Bind(wx.EVT_TEXT_ENTER, self.on_create)
+
 
         # Box for the result of comparisons and complexity analysis
         self.comparison_label = wx.StaticText(self.panel, label="Comparisons Count:")
@@ -99,7 +103,6 @@ class SortingFrame(wx.Frame):
         # Sizer for left side elements
         left_sizer = wx.BoxSizer(wx.VERTICAL)
         left_sizer.Add(self.size_label, 0, wx.ALL, 5)
-        left_sizer.Add(self.size_textbox, 0, wx.EXPAND | wx.ALL, 5)
         left_sizer.Add(self.random_size_slider, 0, wx.EXPAND | wx.ALL, 5)
         left_sizer.Add(self.speed_label, 0, wx.ALL, 5)
         left_sizer.Add(self.speed_slider, 0, wx.EXPAND | wx.ALL, 5)
@@ -115,6 +118,11 @@ class SortingFrame(wx.Frame):
         graph_sizer = wx.BoxSizer(wx.HORIZONTAL)
         graph_sizer.Add(left_sizer, 0, wx.EXPAND | wx.ALL, 10)
         graph_sizer.Add(self.graph_panel, 1, wx.EXPAND | wx.ALL, 10)
+
+        # Sizer for user given array
+        array_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        array_sizer.Add(self.array_label, 0, wx.ALL, 5)
+        array_sizer.Add(self.array_text, 0, wx.EXPAND | wx.ALL, 5)
 
         # Sizer for the comparison
         results_sizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -132,6 +140,7 @@ class SortingFrame(wx.Frame):
 
         # Main sizer for the frame
         main_sizer = wx.BoxSizer(wx.VERTICAL)
+        main_sizer.Add(array_sizer, 0, wx.EXPAND | wx.ALL, 10)
         main_sizer.Add(graph_sizer, 0, wx.EXPAND | wx.ALL, 10)
         main_sizer.Add(results_sizer, 0, wx.EXPAND | wx.ALL, 2)
         main_sizer.Add(complexity_type_sizer, 0, wx.EXPAND | wx.ALL, 2)
@@ -148,31 +157,43 @@ class SortingFrame(wx.Frame):
 
     def perform_complexity_analysis(self):
         if self.algorithm_name == "Bubble Sort":
-            self.complexity_type.SetValue("Bubble Sort has a worst-case time complexity of O(n^2) and a best-case time complexity of O(n).")
+            self.complexity_type.SetValue("Bubble Sort has a worst-case time complexity of O(n^2) and a best-case time complexity of Ω(n).")
         elif self.algorithm_name == "Insertion Sort":
-            self.complexity_type.SetValue("Insertion Sort has a worst-case time complexity of O(n^2) and a best-case time complexity of O(n).")
+            self.complexity_type.SetValue("Insertion Sort has a worst-case time complexity of O(n^2) and a best-case time complexity of Ω(n).")
         elif self.algorithm_name == "Selection Sort":
-            self.complexity_type.SetValue("Selection Sort has a worst-case time complexity of O(n^2) and a best-case time complexity of O(n^2).")
+            self.complexity_type.SetValue("Selection Sort has a worst-case time complexity of O(n^2) and a best-case time complexity of Ω(n^2).")
         elif self.algorithm_name == "Merge Sort":
-            self.complexity_type.SetValue("Merge Sort has a worst-case time complexity of O(n log n) and a best-case time complexity of O(n log n).")
+            self.complexity_type.SetValue("Merge Sort has a worst-case time complexity of O(n log n) and a best-case time complexity of Ω(n log n).")
         elif self.algorithm_name == "Quick Sort":
-            self.complexity_type.SetValue("Quick Sort has a worst-case time complexity of O(n^2) and a best-case time complexity of O(n log n).")
+            self.complexity_type.SetValue("Quick Sort has a worst-case time complexity of O(n^2) and a best-case time complexity of Ω(n log n).")
         elif self.algorithm_name == "Heap Sort":
-            self.complexity_type.SetValue("Heap Sort has a worst-case time complexity of O(n log n) and a best-case time complexity of O(n log n).")
+            self.complexity_type.SetValue("Heap Sort has a worst-case time complexity of O(n log n) and a best-case time complexity of Ω(n log n).")
         else:
             self.complexity_type.SetValue("Complexity analysis is not available for the selected algorithm.")
+        self.on_complexity_analysis()
 
     def update_comparison_text(self):
         self.comparison_count += 1
         self.comparison_text.SetValue(f"{self.comparison_count}")
 
-    def on_complexity_analysis(self, event):
-        self.complexity_result = self.perform_complexity_analysis()  # Perform your complexity analysis and get the results
-        dlg = wx.MessageDialog(self, self.complexity_result, "Complexity Analysis Results", wx.OK | wx.ICON_INFORMATION)
-        dlg.ShowModal()
-        dlg.Destroy()
+    def on_complexity_analysis(self):
+        n = len(self.numbers)
+        if self.algorithm_name == "Bubble Sort":
+            self.complexity_text.SetValue(f"Worst-case time complexity: O({n*n}) Best-case time complexity of Ω({n}).")
+        elif self.algorithm_name == "Insertion Sort":
+            self.complexity_text.SetValue(f"Worst-case time complexity: O({n*n}) Best-case time complexity of Ω({n}).")
+        elif self.algorithm_name == "Selection Sort":
+            self.complexity_text.SetValue(f"Worst-case time complexity: O({n*n}) Best-case time complexity of Ω({n*n}).")
+        elif self.algorithm_name == "Merge Sort":
+            self.complexity_text.SetValue(f"Worst-case time complexity: O({n*math.log(n)}) Best-case time complexity of Ω({n*math.log(n)}).")
+        elif self.algorithm_name == "Quick Sort":
+            self.complexity_text.SetValue(f"Worst-case time complexity: O({n*n}) Best-case time complexity of Ω({n*math.log(n)}).")
+        elif self.algorithm_name == "Heap Sort":
+            self.complexity_text.SetValue(f"Worst-case time complexity: O({n*math.log(n)}) Best-case time complexity of Ω({n*math.log(n)}).")
+        else:
+            self.complexity_text.SetValue("")
 
-    def on_input_enter(self, event):
+    def on_input_enter(self):
         # Get the input text
         input_text = self.input_text.GetValue()
 
@@ -186,26 +207,12 @@ class SortingFrame(wx.Frame):
         self.graph_panel.set_numbers(numbers)
         self.graph_panel.Refresh()
 
-    def on_submit(self, event):
-        self.on_input_enter(event)
 
     def on_create(self, event):
-        size_text = self.size_textbox.GetValue()
         graph_type = self.graph_type_radiobox.GetStringSelection()
 
-        if size_text:
-            try:
-                size = int(size_text)
-                if size < 1:
-                    wx.MessageBox("Invalid size!", "Error", wx.OK | wx.ICON_ERROR)
-                    return
-                self.numbers = random.sample(range(1, size + 1), size)
-            except ValueError:
-                wx.MessageBox("Invalid size input!", "Error", wx.OK | wx.ICON_ERROR)
-                return
-        else:
-            size = self.random_size_slider.GetValue()
-            self.numbers = random.sample(range(1, size + 1), size)
+        size = self.random_size_slider.GetValue()
+        self.numbers = random.sample(range(1, size + 1), size)
 
         self.graph_panel.set_numbers(self.numbers)
         self.graph_panel.set_graph_type(graph_type)
@@ -235,7 +242,6 @@ class SortingFrame(wx.Frame):
         self.algorithms_radiobox.Disable()
         self.speed_slider.Disable()
         self.random_size_slider.Disable()
-        self.size_textbox.Disable()
 
         self.perform_complexity_analysis()
 
@@ -261,7 +267,6 @@ class SortingFrame(wx.Frame):
         self.algorithms_radiobox.Disable()
         self.speed_slider.Disable()
         self.random_size_slider.Disable()
-        self.size_textbox.Disable()
 
         self.state = 2
 
@@ -289,7 +294,6 @@ class SortingFrame(wx.Frame):
         self.algorithms_radiobox.Disable()
         self.speed_slider.Disable()
         self.random_size_slider.Disable()
-        self.size_textbox.Disable()
 
         self.state = 3
 
@@ -311,7 +315,6 @@ class SortingFrame(wx.Frame):
         self.algorithms_radiobox.Enable()
         self.speed_slider.Enable()
         self.random_size_slider.Enable()
-        self.size_textbox.Enable()
 
         # Reset the count
         self.comparison_count = 0
@@ -335,7 +338,6 @@ class SortingFrame(wx.Frame):
         self.algorithms_radiobox.Enable()
         self.speed_slider.Enable()
         self.random_size_slider.Enable()
-        self.size_textbox.Enable()
 
     def bubble_sort(self, speed):
         numbers = self.numbers.copy()
